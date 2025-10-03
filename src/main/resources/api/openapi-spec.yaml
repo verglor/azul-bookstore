@@ -1,0 +1,1025 @@
+openapi: 3.0.3
+
+# API Information - Metadata about the Bookstore API
+info:
+  title: Azul Bookstore API
+  description: |
+    A comprehensive REST API for managing books, authors, and genres in the Azul Bookstore system.
+
+    ## Features
+    - Full CRUD operations for Books, Authors, and Genres
+    - Spring Boot-style pagination with flexible sorting
+    - JWT-based authentication and authorization
+    - Comprehensive error handling and validation
+    - Relationship management between entities
+
+    ## Authentication
+    All protected endpoints require JWT bearer token authentication.
+    Include the token in the Authorization header: `Authorization: Bearer <token>`
+
+    ## Pagination
+    List endpoints support pagination using query parameters:
+    - `page`: Page number (0-based, default: 0)
+    - `size`: Page size (default: 20, max: 100)
+    - `sort`: Sort specification (e.g., `name,asc`, `title,desc`)
+
+    ## Relationships
+    - Books can have multiple authors and genres
+    - Authors can be associated with multiple books
+    - Genres are standalone entities used for categorization
+  version: 1.0.0
+  contact:
+    name: Azul Bookstore API Support
+    email: api-support@bookstore.azul.verglor.com
+    url: https://api.bookstore.azul.verglor.com/support
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+# Server configurations for different environments
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Development server
+    variables:
+      version:
+        default: v1
+        enum: [v1]
+  - url: https://staging.bookstore.azul.verglor.com/api/v1
+    description: Staging server
+    variables:
+      version:
+        default: v1
+        enum: [v1]
+  - url: https://api.bookstore.azul.verglor.com/api/v1
+    description: Production server
+    variables:
+      version:
+        default: v1
+        enum: [v1]
+
+# Reusable components - schemas, parameters, responses, and security schemes
+components:
+  # Security Schemes
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT Authorization header using the Bearer scheme.
+
+        **Format:** `Authorization: Bearer <token>`
+
+        Obtain tokens through the authentication endpoints (not included in this specification).
+
+  # Common Parameters
+  parameters:
+    # Pagination parameters
+    pageParam:
+      name: page
+      in: query
+      description: Page number (0-based indexing)
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+      example: 0
+
+    sizeParam:
+      name: size
+      in: query
+      description: Number of items per page
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      example: 20
+
+    sortParam:
+      name: sort
+      in: query
+      description: |
+        Sort specification compatible with Spring Boot's Sort functionality.
+
+        **Format:** `field1,direction1;field2,direction2`
+
+        **Direction options:** `asc`, `desc`, `ASC`, `DESC`
+
+        **Examples:**
+        - `name,asc` - Sort by name ascending
+        - `title,desc` - Sort by title descending
+        - `price,asc;name,desc` - Sort by price ascending, then name descending
+        - `createdDate,DESC` - Sort by createdDate descending (case-insensitive)
+
+        **Note:** Multiple sort fields are supported and will be applied in order.
+      required: false
+      schema:
+        type: string
+        pattern: '^([a-zA-Z][a-zA-Z0-9]*,(asc|desc|ASC|DESC))(;([a-zA-Z][a-zA-Z0-9]*,(asc|desc|ASC|DESC)))*$'
+        minLength: 3
+        maxLength: 100
+      example: name,asc
+
+    # Path parameters
+    bookIdParam:
+      name: bookId
+      in: path
+      description: Unique identifier of the book
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+      example: 123
+
+    authorIdParam:
+      name: authorId
+      in: path
+      description: Unique identifier of the author
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+      example: 456
+
+    genreIdParam:
+      name: genreId
+      in: path
+      description: Unique identifier of the genre
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+      example: 789
+
+  # Response Schemas
+  schemas:
+    # Entity Schemas
+    BookResponse:
+      type: object
+      description: Book entity representing a publication in the bookstore
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier of the book
+          example: 123
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Title of the book
+          example: "The Great Gatsby"
+        price:
+          type: number
+          format: decimal
+          minimum: 0
+          exclusiveMinimum: true
+          multipleOf: 0.01
+          description: Price of the book in the store's currency
+          example: 19.99
+        authors:
+          type: array
+          description: List of authors associated with this book
+          items:
+            $ref: '#/components/schemas/AuthorResponse'
+        genres:
+          type: array
+          description: List of genres associated with this book
+          items:
+            $ref: '#/components/schemas/GenreResponse'
+      required:
+        - title
+        - price
+
+    AuthorResponse:
+      type: object
+      description: Author entity representing a book author
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier of the author
+          example: 456
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+          description: Full name of the author
+          example: "F. Scott Fitzgerald"
+      required:
+        - name
+
+    GenreResponse:
+      type: object
+      description: Genre entity representing a book category
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Unique identifier of the genre
+          example: 789
+        name:
+          type: string
+          minLength: 2
+          maxLength: 50
+          description: Name of the genre
+          example: "Fiction"
+      required:
+        - name
+
+    # Pagination Schema
+    PagedResponse:
+      type: object
+      description: Standard paginated response wrapper
+      properties:
+        content:
+          type: array
+          description: Array of items for the current page
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/BookResponse'
+              - $ref: '#/components/schemas/AuthorResponse'
+              - $ref: '#/components/schemas/GenreResponse'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+
+    PageInfo:
+      type: object
+      description: Pagination information
+      properties:
+        number:
+          type: integer
+          description: Current page number (0-based)
+          example: 0
+        size:
+          type: integer
+          description: Size of the current page
+          example: 20
+        totalElements:
+          type: integer
+          format: int64
+          description: Total number of elements across all pages
+          example: 150
+        totalPages:
+          type: integer
+          description: Total number of pages
+          example: 8
+
+    Sort:
+      type: object
+      description: Sorting information
+      properties:
+        sorted:
+          type: boolean
+          description: Whether the results are sorted
+          example: true
+        empty:
+          type: boolean
+          description: Whether the sort is empty
+          example: false
+        unsorted:
+          type: boolean
+          description: Whether the results are unsorted
+          example: false
+
+
+    # Error Response Schemas
+    ErrorResponse:
+      type: object
+      description: Standard error response
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+          description: When the error occurred
+          example: "2023-12-01T10:30:00Z"
+        status:
+          type: integer
+          description: HTTP status code
+          example: 400
+        error:
+          type: string
+          description: Error type
+          example: "Bad Request"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Validation failed for the request"
+        validationErrors:
+          type: array
+          description: Detailed validation errors (when applicable)
+          items:
+            $ref: '#/components/schemas/ValidationError'
+
+    ValidationError:
+      type: object
+      description: Individual field validation error
+      properties:
+        field:
+          type: string
+          description: Name of the field that failed validation
+          example: "title"
+        rejectedValue:
+          description: The value that was rejected
+          example: ""
+        message:
+          type: string
+          description: Validation error message
+          example: "Book title is required"
+
+    # Request Schemas (for creation and updates)
+    BookRequest:
+      type: object
+      description: Request payload for creating or updating a book
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Title of the book
+          example: "The Great Gatsby"
+        price:
+          type: number
+          format: decimal
+          minimum: 0
+          exclusiveMinimum: true
+          multipleOf: 0.01
+          description: Price of the book
+          example: 19.99
+        authorIds:
+          type: array
+          description: List of author IDs to associate with this book
+          items:
+            type: integer
+            format: int64
+          example: [1, 2]
+        genreIds:
+          type: array
+          description: List of genre IDs to associate with this book
+          items:
+            type: integer
+            format: int64
+          example: [1, 3]
+      required:
+        - title
+        - price
+
+    AuthorRequest:
+      type: object
+      description: Request payload for creating or updating an author
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+          description: Full name of the author
+          example: "F. Scott Fitzgerald"
+      required:
+        - name
+
+    GenreRequest:
+      type: object
+      description: Request payload for creating or updating a genre
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 50
+          description: Name of the genre
+          example: "Fiction"
+      required:
+        - name
+
+  # Common Responses
+  responses:
+    BadRequest:
+      description: Bad Request - Invalid input data
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: "2023-12-01T10:30:00Z"
+            status: 400
+            error: "Bad Request"
+            message: "Validation failed"
+            validationErrors:
+              - field: "title"
+                rejectedValue: ""
+                message: "Book title is required"
+
+    Unauthorized:
+      description: Unauthorized - Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: "2023-12-01T10:30:00Z"
+            status: 401
+            error: "Unauthorized"
+            message: "JWT token is missing or invalid"
+
+    Forbidden:
+      description: Forbidden - Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: "2023-12-01T10:30:00Z"
+            status: 403
+            error: "Forbidden"
+            message: "Access denied for this resource"
+
+    NotFound:
+      description: Not Found - Resource does not exist
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: "2023-12-01T10:30:00Z"
+            status: 404
+            error: "Not Found"
+            message: "Book with ID 999 not found"
+
+    Conflict:
+      description: Conflict - Resource already exists or constraint violation
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: "2023-12-01T10:30:00Z"
+            status: 409
+            error: "Conflict"
+            message: "Genre with name 'Fiction' already exists"
+
+    InternalServerError:
+      description: Internal Server Error - Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            timestamp: "2023-12-01T10:30:00Z"
+            status: 500
+            error: "Internal Server Error"
+            message: "An unexpected error occurred"
+
+# API Paths - CRUD operations for each entity
+paths:
+  # Book endpoints
+  /books:
+    # Get all books with pagination and search
+    get:
+      summary: Get all books
+      description: |
+        Retrieve a paginated list of all books in the bookstore.
+
+        Supports sorting, pagination, and search by title, author, and genre for efficient data retrieval.
+      operationId: getAllBooks
+      tags:
+        - Books
+      parameters:
+        - $ref: '#/components/parameters/pageParam'
+        - $ref: '#/components/parameters/sizeParam'
+        - $ref: '#/components/parameters/sortParam'
+        - name: title
+          in: query
+          description: Search books by title (case-insensitive partial match)
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 200
+          example: "gatsby"
+        - name: author
+          in: query
+          description: Search books by author name (case-insensitive partial match)
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+          example: "fitzgerald"
+        - name: genre
+          in: query
+          description: Search books by genre name (case-insensitive partial match)
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 50
+          example: "fiction"
+      x-spring-paginated: true
+      responses:
+        '200':
+          description: Successfully retrieved books
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedResponse'
+              example:
+                content:
+                  - id: 1
+                    title: "The Great Gatsby"
+                    price: 19.99
+                    authors:
+                      - id: 1
+                        name: "F. Scott Fitzgerald"
+                    genres:
+                      - id: 1
+                        name: "Fiction"
+                page:
+                  number: 0
+                  size: 20
+                  totalElements: 150
+                  totalPages: 8
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    # Create a new book
+    post:
+      summary: Create a new book
+      description: |
+        Create a new book in the bookstore.
+
+        Associates the book with specified authors and genres if provided.
+      operationId: createBook
+      tags:
+        - Books
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookRequest'
+            example:
+              title: "To Kill a Mockingbird"
+              price: 15.99
+              authorIds: [2]
+              genreIds: [1, 2]
+      responses:
+        '201':
+          description: Book created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookResponse'
+              example:
+                id: 2
+                title: "To Kill a Mockingbird"
+                price: 15.99
+                authors:
+                  - id: 2
+                    name: "Harper Lee"
+                genres:
+                  - id: 1
+                    name: "Fiction"
+                  - id: 2
+                    name: "Classic Literature"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Individual book operations
+  /books/{bookId}:
+    # Get book by ID
+    get:
+      summary: Get book by ID
+      description: Retrieve a specific book by its unique identifier
+      operationId: getBookById
+      tags:
+        - Books
+      parameters:
+        - $ref: '#/components/parameters/bookIdParam'
+      responses:
+        '200':
+          description: Book found successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookResponse'
+              example:
+                id: 1
+                title: "The Great Gatsby"
+                price: 19.99
+                authors:
+                  - id: 1
+                    name: "F. Scott Fitzgerald"
+                genres:
+                  - id: 1
+                    name: "Fiction"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    # Update book by ID
+    put:
+      summary: Update book by ID
+      description: |
+        Update an existing book's information.
+
+        All fields are required for update operations.
+      operationId: updateBook
+      tags:
+        - Books
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/bookIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookRequest'
+            example:
+              title: "The Great Gatsby - Updated Edition"
+              price: 24.99
+              authorIds: [1, 3]
+              genreIds: [1]
+      responses:
+        '200':
+          description: Book updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookResponse'
+              example:
+                id: 1
+                title: "The Great Gatsby - Updated Edition"
+                price: 24.99
+                authors:
+                  - id: 1
+                    name: "F. Scott Fitzgerald"
+                  - id: 3
+                    name: "New Editor"
+                genres:
+                  - id: 1
+                    name: "Fiction"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    # Delete book by ID
+    delete:
+      summary: Delete book by ID
+      description: Permanently delete a book from the bookstore
+      operationId: deleteBook
+      tags:
+        - Books
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/bookIdParam'
+      responses:
+        '204':
+          description: Book deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Author endpoints
+  /authors:
+    # Get all authors with pagination
+    get:
+      summary: Get all authors
+      description: Retrieve a paginated list of all authors
+      operationId: getAllAuthors
+      tags:
+        - Authors
+      parameters:
+        - $ref: '#/components/parameters/pageParam'
+        - $ref: '#/components/parameters/sizeParam'
+        - $ref: '#/components/parameters/sortParam'
+      x-spring-paginated: true
+      responses:
+        '200':
+          description: Successfully retrieved authors
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedResponse'
+              example:
+                content:
+                  - id: 1
+                    name: "F. Scott Fitzgerald"
+                page:
+                  number: 0
+                  size: 20
+                  totalElements: 50
+                  totalPages: 3
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    # Create a new author
+    post:
+      summary: Create a new author
+      description: Create a new author in the system
+      operationId: createAuthor
+      tags:
+        - Authors
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthorRequest'
+            example:
+              name: "Harper Lee"
+      responses:
+        '201':
+          description: Author created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthorResponse'
+              example:
+                id: 2
+                name: "Harper Lee"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Individual author operations
+  /authors/{authorId}:
+    # Get author by ID
+    get:
+      summary: Get author by ID
+      description: Retrieve a specific author by their unique identifier
+      operationId: getAuthorById
+      tags:
+        - Authors
+      parameters:
+        - $ref: '#/components/parameters/authorIdParam'
+      responses:
+        '200':
+          description: Author found successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthorResponse'
+              example:
+                id: 1
+                name: "F. Scott Fitzgerald"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    # Update author by ID
+    put:
+      summary: Update author by ID
+      description: Update an existing author's information
+      operationId: updateAuthor
+      tags:
+        - Authors
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/authorIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthorRequest'
+            example:
+              name: "Francis Scott Fitzgerald"
+      responses:
+        '200':
+          description: Author updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthorResponse'
+              example:
+                id: 1
+                name: "Francis Scott Fitzgerald"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    # Delete author by ID
+    delete:
+      summary: Delete author by ID
+      description: Permanently delete an author from the system
+      operationId: deleteAuthor
+      tags:
+        - Authors
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/authorIdParam'
+      responses:
+        '204':
+          description: Author deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Genre endpoints
+  /genres:
+    # Get all genres with pagination
+    get:
+      summary: Get all genres
+      description: Retrieve a paginated list of all genres
+      operationId: getAllGenres
+      tags:
+        - Genres
+      parameters:
+        - $ref: '#/components/parameters/pageParam'
+        - $ref: '#/components/parameters/sizeParam'
+        - $ref: '#/components/parameters/sortParam'
+      x-spring-paginated: true
+      responses:
+        '200':
+          description: Successfully retrieved genres
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedResponse'
+              example:
+                content:
+                  - id: 1
+                    name: "Fiction"
+                page:
+                  number: 0
+                  size: 20
+                  totalElements: 25
+                  totalPages: 2
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    # Create a new genre
+    post:
+      summary: Create a new genre
+      description: Create a new genre in the system
+      operationId: createGenre
+      tags:
+        - Genres
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenreRequest'
+            example:
+              name: "Science Fiction"
+      responses:
+        '201':
+          description: Genre created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenreResponse'
+              example:
+                id: 4
+                name: "Science Fiction"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Individual genre operations
+  /genres/{genreId}:
+    # Get genre by ID
+    get:
+      summary: Get genre by ID
+      description: Retrieve a specific genre by its unique identifier
+      operationId: getGenreById
+      tags:
+        - Genres
+      parameters:
+        - $ref: '#/components/parameters/genreIdParam'
+      responses:
+        '200':
+          description: Genre found successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenreResponse'
+              example:
+                id: 1
+                name: "Fiction"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    # Update genre by ID
+    put:
+      summary: Update genre by ID
+      description: Update an existing genre's information
+      operationId: updateGenre
+      tags:
+        - Genres
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/genreIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenreRequest'
+            example:
+              name: "Literary Fiction"
+      responses:
+        '200':
+          description: Genre updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenreResponse'
+              example:
+                id: 1
+                name: "Literary Fiction"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+    # Delete genre by ID
+    delete:
+      summary: Delete genre by ID
+      description: Permanently delete a genre from the system
+      operationId: deleteGenre
+      tags:
+        - Genres
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/genreIdParam'
+      responses:
+        '204':
+          description: Genre deleted successfully
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
