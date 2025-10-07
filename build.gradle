@@ -2,6 +2,7 @@ plugins {
 	id 'java'
 	id 'org.springframework.boot' version '3.5.6'
 	id 'io.spring.dependency-management' version '1.1.7'
+	id 'org.openapi.generator' version '7.16.0'
 }
 
 group = 'com.verglor.azul.bookstore'
@@ -40,6 +41,41 @@ dependencies {
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
+}
+
+// OpenAPI Generator Configuration
+openApiGenerate {
+	// Input OpenAPI specification file
+	inputSpec = "$projectDir/src/main/resources/api/openapi-spec.yaml".toString()
+
+	// Output directory for generated files
+	outputDir = "$buildDir/generated".toString()
+
+	// Generator to use - spring for Spring Boot interfaces and models
+	generatorName = "spring"
+
+	// Package configuration
+	configOptions = [
+		"basePackage"             : "com.verglor.azul.bookstore.openapi",
+		"modelPackage"            : "com.verglor.azul.bookstore.openapi.model",
+		"apiPackage"              : "com.verglor.azul.bookstore.openapi.api",
+		"useSpringBoot3"          : "true",        // Use Spring Boot 3 annotations
+		"delegatePattern"         : "true",        // Use delegate pattern
+		"performBeanValidation"   : "true",        // Generate Bean Validation annotations
+		"generateBuilders"        : "true"         // Generate builders for models
+	]
+}
+
+// Make the openApiGenerate task run automatically when building
+compileJava.dependsOn 'openApiGenerate'
+
+// Configure the generated source directory to be included in compilation
+sourceSets {
+	main {
+		java {
+			srcDirs += "${buildDir}/generated/src/main/java"
+		}
+	}
 }
 
 tasks.named('test') {
