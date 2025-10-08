@@ -33,4 +33,9 @@ public class Author {
     @ToString.Exclude
     private List<Book> books = new ArrayList<>();
 
+    // Explicit getter for books to ensure proper bidirectional relationship management
+    public List<Book> getBooks() {
+        return books;
+    }
+
 }
