@@ -1,0 +1,64 @@
+version: 0.2
+
+env:
+  variables:
+    AWS_ECR_REPO: azul-bookstore
+
+phases:
+  install:
+    runtime-versions:
+      java: corretto21
+    commands:
+      - java -version
+      - docker --version
+
+  pre_build:
+    commands:
+      - AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+      - AWS_ECR_HOST=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - echo "Logging in to Amazon ECR $AWS_ECR_HOST ..."
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ECR_HOST
+      - ./gradlew --version
+
+  build:
+    commands:
+      - echo "Building & testing application..."
+      - ./gradlew clean check
+      - echo "Building Docker image..."
+      - ./gradlew bootBuildImage --imageName=$AWS_ECR_HOST/$AWS_ECR_REPO:latest
+      - docker tag $AWS_ECR_HOST/$AWS_ECR_REPO:latest $AWS_ECR_HOST/$AWS_ECR_REPO:$CODEBUILD_BUILD_NUMBER
+      - docker tag $AWS_ECR_HOST/$AWS_ECR_REPO:latest $AWS_ECR_HOST/$AWS_ECR_REPO:$CODEBUILD_RESOLVED_SOURCE_VERSION
+      - docker push --all-tags $AWS_ECR_HOST/$AWS_ECR_REPO
+
+  post_build:
+    commands:
+      - echo "Build completed successfully!"
+      - echo "Docker image pushed to ECR:"
+      - echo "$AWS_ECR_HOST/$AWS_ECR_REPO:[latest,$CODEBUILD_BUILD_NUMBER,$CODEBUILD_RESOLVED_SOURCE_VERSION]"
+      - echo "Creating imagedefinitions.json for CodePipeline..."
+      - |
+        cat > imagedefinitions.json << EOF
+        [
+          {
+            "name": "$AWS_ECR_REPO",
+            "imageUri": "$AWS_ECR_HOST/$AWS_ECR_REPO:$CODEBUILD_BUILD_NUMBER"
+          }
+        ]
+        EOF
+
+cache:
+  paths:
+    - '/root/.gradle/caches/**/*'
+    - '/root/.gradle/wrapper/**/*'
+    - '.gradle/**/*'
+
+reports:
+  JUnitTestReports:
+    files:
+      - '**/*.xml'
+    base-directory: 'build/test-results/test'
+
+artifacts:
+  name: Imagedefinitions
+  files:
+    - imagedefinitions.json
