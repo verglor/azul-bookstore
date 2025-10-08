@@ -74,6 +74,8 @@ sourceSets {
 	main {
 		java {
 			srcDirs += "${buildDir}/generated/src/main/java"
+			// Exclude generated OpenApiGeneratorApplication
+			exclude 'com/verglor/azul/bookstore/openapi/OpenApiGeneratorApplication.java'
 		}
 	}
 }
