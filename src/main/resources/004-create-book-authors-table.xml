@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.17.xsd">
+
+    <changeSet id="004-create-book-authors-table" author="system">
+        <comment>Create book_authors junction table for many-to-many relationship</comment>
+        <createTable tableName="book_authors">
+            <column name="book_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+            <column name="author_id" type="bigint">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+
+        <!-- Add primary key constraint -->
+        <addPrimaryKey columnNames="book_id, author_id" tableName="book_authors"/>
+
+        <!-- Add foreign key constraints -->
+        <addForeignKeyConstraint
+            baseTableName="book_authors"
+            baseColumnNames="book_id"
+            referencedTableName="books"
+            referencedColumnNames="id"
+            constraintName="fk_book_authors_book_id"/>
+
+        <addForeignKeyConstraint
+            baseTableName="book_authors"
+            baseColumnNames="author_id"
+            referencedTableName="authors"
+            referencedColumnNames="id"
+            constraintName="fk_book_authors_author_id"/>
+    </changeSet>
+
+</databaseChangeLog>
