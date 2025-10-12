@@ -1,5 +1,6 @@
 plugins {
 	id 'java'
+	id 'groovy'
 	id 'org.springframework.boot' version '3.5.6'
 	id 'io.spring.dependency-management' version '1.1.7'
 	id 'org.openapi.generator' version '7.16.0'
@@ -39,6 +40,20 @@ dependencies {
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+	// Spock Framework for testing
+	testImplementation 'org.spockframework:spock-core:2.4-M6-groovy-4.0'
+	testImplementation 'org.spockframework:spock-spring:2.4-M6-groovy-4.0'
+	testImplementation 'org.apache.groovy:groovy-all:4.0.28'
+
+	// RestAssured for integration testing
+	testImplementation 'io.rest-assured:rest-assured:5.5.6'
+	testImplementation 'io.rest-assured:json-path:5.5.6'
+	testImplementation 'io.rest-assured:xml-path:5.5.6'
+
+	// TestContainers for integration tests
+	testImplementation 'org.testcontainers:junit-jupiter:1.21.3'
+	testImplementation 'org.testcontainers:spock:1.21.3'
 
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 }
