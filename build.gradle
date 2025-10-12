@@ -28,6 +28,10 @@ dependencies {
 	implementation 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
 
+	// OpenAPI/Swagger dependencies for generated code
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.13'
+	implementation 'org.openapitools:jackson-databind-nullable:0.2.6'
+
 	implementation 'org.liquibase:liquibase-core'
 
 	runtimeOnly 'com.h2database:h2'
