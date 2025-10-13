@@ -104,23 +104,25 @@ components:
       description: |
         Sort specification compatible with Spring Boot's Sort functionality.
 
-        **Format:** `field1,direction1;field2,direction2`
+        **Format:** `field,direction` (can be repeated for multiple sort fields)
 
         **Direction options:** `asc`, `desc`, `ASC`, `DESC`
 
         **Examples:**
-        - `name,asc` - Sort by name ascending
-        - `title,desc` - Sort by title descending
-        - `price,asc;name,desc` - Sort by price ascending, then name descending
-        - `createdDate,DESC` - Sort by createdDate descending (case-insensitive)
+        - `?sort=price,asc` - Sort by price ascending
+        - `?sort=title,desc` - Sort by title descending
+        - `?sort=price,asc&sort=title,desc` - Sort by price ascending, then title descending
 
-        **Note:** Multiple sort fields are supported and will be applied in order.
+        **Note:** Multiple sort fields are supported by repeating the sort parameter and will be applied in order.
       required: false
       schema:
-        type: string
-        pattern: '^([a-zA-Z][a-zA-Z0-9]*,(asc|desc|ASC|DESC))(;([a-zA-Z][a-zA-Z0-9]*,(asc|desc|ASC|DESC)))*$'
-        minLength: 3
-        maxLength: 100
+        type: array
+        items:
+          type: string
+          minLength: 3
+          maxLength: 50
+      style: form
+      explode: true
       example: name,asc
 
     # Path parameters
@@ -209,7 +211,7 @@ components:
         name:
           type: string
           minLength: 2
-          maxLength: 100
+          maxLength: 50
           description: Full name of the author
           example: "F. Scott Fitzgerald"
       required:
@@ -377,7 +379,7 @@ components:
         name:
           type: string
           minLength: 2
-          maxLength: 100
+          maxLength: 50
           description: Full name of the author
           example: "F. Scott Fitzgerald"
       required:
@@ -508,7 +510,7 @@ paths:
           schema:
             type: string
             minLength: 1
-            maxLength: 100
+            maxLength: 50
           example: "fitzgerald"
         - name: genre
           in: query
