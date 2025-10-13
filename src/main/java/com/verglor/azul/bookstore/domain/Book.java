@@ -3,6 +3,7 @@ package com.verglor.azul.bookstore.domain;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -35,6 +36,7 @@ public class Book {
 
     // Relationships
     @ManyToMany(fetch = FetchType.LAZY)
+    @BatchSize(size = 100)
     @JoinTable(
         name = "book_authors",
         joinColumns = @JoinColumn(name = "book_id"),
@@ -45,6 +47,7 @@ public class Book {
     private List<Author> authors = new ArrayList<>();
 
     @ManyToMany(fetch = FetchType.LAZY)
+    @BatchSize(size = 100)
     @JoinTable(
         name = "book_genres",
         joinColumns = @JoinColumn(name = "book_id"),
