@@ -57,8 +57,18 @@ reports:
     files:
       - '**/*.xml'
     base-directory: 'build/test-results/test'
+  CodeCoverageReports:
+    files:
+      - 'jacocoTestReport.xml'
+    base-directory: 'build/reports/jacoco/test'
+    file-format: JACOCOXML
 
 artifacts:
   name: Imagedefinitions
   files:
     - imagedefinitions.json
+  secondary-artifacts:
+    reports:
+      name: Reports
+      files:
+        - 'build/reports/**/*'
