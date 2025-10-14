@@ -97,6 +97,12 @@ sourceSets {
 	}
 }
 
+processResources {
+	from('src/main/resources/api') {
+		into 'public/api/v1'
+	}
+}
+
 tasks.named('test') {
 	useJUnitPlatform()
 	finalizedBy jacocoTestReport // Enable JaCoCo for all test tasks
