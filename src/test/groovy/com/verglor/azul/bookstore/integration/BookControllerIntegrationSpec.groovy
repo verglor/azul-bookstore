@@ -1,10 +1,9 @@
-package com.verglor.azul.bookstore.controller
+package com.verglor.azul.bookstore.integration
 
 import com.verglor.azul.bookstore.BaseIntegrationSpec
 import com.verglor.azul.bookstore.domain.Author
 import com.verglor.azul.bookstore.domain.Book
 import com.verglor.azul.bookstore.domain.Genre
-import org.springframework.transaction.annotation.Transactional
 
 import static io.restassured.RestAssured.given
 import static org.hamcrest.Matchers.*
