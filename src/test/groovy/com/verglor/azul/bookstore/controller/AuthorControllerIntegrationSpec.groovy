@@ -429,4 +429,136 @@ class AuthorControllerIntegrationSpec extends BaseIntegrationSpec {
                 .statusCode(409)
                 .body("error", equalTo("Conflict"))
     }
+
+    def "should search authors by name containing"() {
+        given:
+        Author author1 = createTestAuthor("Stephen King")
+        Author author2 = createTestAuthor("King Arthur")
+        Author author3 = createTestAuthor("John Smith")
+        authorRepository.saveAll([author1, author2, author3])
+
+        when:
+        def response = getRequestSpecification()
+                .queryParam("name", "king")
+                .when()
+                .get("${getBaseUrl()}/authors")
+
+        then:
+        response.then()
+                .statusCode(200)
+                .body("content.size()", equalTo(2))
+                .body("content*.name", hasItems("Stephen King", "King Arthur"))
+                .body("content*.name", not(hasItem("John Smith")))
+                .body("page.totalElements", equalTo(2))
+    }
+
+    def "should search authors case insensitive"() {
+        given:
+        Author author1 = createTestAuthor("Stephen King")
+        Author author2 = createTestAuthor("John Smith")
+        authorRepository.saveAll([author1, author2])
+
+        when:
+        def response = getRequestSpecification()
+                .queryParam("name", "KING")
+                .when()
+                .get("${getBaseUrl()}/authors")
+
+        then:
+        response.then()
+                .statusCode(200)
+                .body("content.size()", equalTo(1))
+                .body("content[0].name", equalTo("Stephen King"))
+                .body("page.totalElements", equalTo(1))
+    }
+
+    def "should return all authors when name parameter is not provided"() {
+        given:
+        Author author1 = createTestAuthor("Author One")
+        Author author2 = createTestAuthor("Author Two")
+        authorRepository.saveAll([author1, author2])
+
+        when:
+        def response = getRequestSpecification()
+                .when()
+                .get("${getBaseUrl()}/authors")
+
+        then:
+        response.then()
+                .statusCode(200)
+                .body("content.size()", equalTo(2))
+                .body("content*.name", hasItems("Author One", "Author Two"))
+                .body("page.totalElements", equalTo(2))
+    }
+
+    def "should return empty result when no authors match search"() {
+        given:
+        Author author1 = createTestAuthor("Stephen King")
+        authorRepository.save(author1)
+
+        when:
+        def response = getRequestSpecification()
+                .queryParam("name", "nonexistent")
+                .when()
+                .get("${getBaseUrl()}/authors")
+
+        then:
+        response.then()
+                .statusCode(200)
+                .body("content.size()", equalTo(0))
+                .body("page.totalElements", equalTo(0))
+    }
+
+    def "should search authors with pagination"() {
+        given:
+        // Create 5 authors
+        (1..5).each { i ->
+            authorRepository.saveAll([
+                    createTestAuthor("Writer $i"),
+                    createTestAuthor("Author $i"),
+            ])
+        }
+
+        when:
+        def response = getRequestSpecification()
+                .queryParam("name", "Author")
+                .queryParam("page", 0)
+                .queryParam("size", 2)
+                .when()
+                .get("${getBaseUrl()}/authors")
+
+        then:
+        response.then()
+                .statusCode(200)
+                .body("content.size()", equalTo(2))
+                .body("content[0].name", equalTo("Author 1"))
+                .body("content[1].name", equalTo("Author 2"))
+                .body("page.size", equalTo(2))
+                .body("page.number", equalTo(0))
+                .body("page.totalElements", equalTo(5))
+                .body("page.totalPages", equalTo(3))
+    }
+
+    def "should search authors with sorting"() {
+        given:
+        authorRepository.saveAll([
+                createTestAuthor("Z Author"),
+                createTestAuthor("B Writer"),
+                createTestAuthor("A Author"),
+        ])
+
+        when:
+        def response = getRequestSpecification()
+                .queryParam("name", "Author")
+                .queryParam("sort", "name,asc")
+                .when()
+                .get("${getBaseUrl()}/authors")
+
+        then:
+        response.then()
+                .statusCode(200)
+                .body("content.size()", equalTo(2))
+                .body("content[0].name", equalTo("A Author"))
+                .body("content[1].name", equalTo("Z Author"))
+    }
 }

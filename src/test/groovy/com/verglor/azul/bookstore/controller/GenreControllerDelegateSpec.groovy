@@ -16,6 +16,8 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import spock.lang.Specification
 import spock.lang.Subject
+import static io.restassured.RestAssured.*
+import static org.hamcrest.Matchers.*
 
 class GenreControllerDelegateSpec extends Specification {
 
@@ -36,7 +38,7 @@ class GenreControllerDelegateSpec extends Specification {
 
         when:
         genreRepository.findAll(pageable) >> genrePage
-        ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres(pageable)
+        ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres(null, pageable)
 
         then:
         response.statusCode == HttpStatus.OK
@@ -228,7 +230,7 @@ class GenreControllerDelegateSpec extends Specification {
 
         when:
         genreRepository.findAll(pageable) >> genrePage
-        ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres(pageable)
+        ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres(null, pageable)
 
         then:
         response.statusCode == HttpStatus.OK
@@ -245,7 +247,7 @@ class GenreControllerDelegateSpec extends Specification {
 
         when:
         genreRepository.findAll(pageable) >> emptyPage
-        ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres(pageable)
+        ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres(null, pageable)
 
         then:
         response.statusCode == HttpStatus.OK
@@ -316,7 +318,7 @@ class GenreControllerDelegateSpec extends Specification {
 
         when:
         genreRepository.findAll(pageable) >> genrePage
-        ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres(pageable)
+        ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres(null, pageable)
 
         then:
         response.statusCode == HttpStatus.OK
@@ -334,7 +336,7 @@ class GenreControllerDelegateSpec extends Specification {
 
         when:
         genreRepository.findAll(pageable) >> genrePage
-        ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres(pageable)
+        ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres(null, pageable)
 
         then:
         response.statusCode == HttpStatus.OK
@@ -342,6 +344,110 @@ class GenreControllerDelegateSpec extends Specification {
         response.body.content[0].name == "Only Genre"
         response.body.page.totalElements == 1
         response.body.page.totalPages == 1
+    }
+
+    def "should handle genre name with unicode characters"() {
+        given:
+        GenreRequest genreRequest = GenreRequest.builder()
+                .name("文学 (Literature)")
+                .build()
+
+        Genre savedGenre = createTestGenre(1L, "文学 (Literature)")
+
+        when:
+        genreRepository.existsByNameIgnoreCase("文学 (Literature)") >> false
+        genreRepository.save(_) >> savedGenre
+        ResponseEntity<GenreResponse> response = genreControllerDelegate.createGenre(genreRequest)
+
+        then:
+        response.statusCode == HttpStatus.CREATED
+        response.body.id == 1L
+        response.body.name == "文学 (Literature)"
+    }
+
+    def "should search genres by name containing"() {
+        given:
+        Pageable pageable = PageRequest.of(0, 10)
+        List<Genre> genres = [
+            createTestGenre(1L, "Science Fiction"),
+            createTestGenre(2L, "Fiction")
+        ]
+        Page<Genre> genrePage = new PageImpl<>(genres, pageable, 2)
+
+        when:
+        genreRepository.findByNameIgnoreCaseContaining("fiction", pageable) >> genrePage
+        ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres("fiction", pageable)
+
+        then:
+        response.statusCode == HttpStatus.OK
+        response.body.content.size() == 2
+        response.body.content[0].name == "Science Fiction"
+        response.body.content[1].name == "Fiction"
+        response.body.page.totalElements == 2
+    }
+
+    def "should search genres case insensitive"() {
+        given:
+        Pageable pageable = PageRequest.of(0, 10)
+        List<Genre> genres = [createTestGenre(1L, "Science Fiction")]
+        Page<Genre> genrePage = new PageImpl<>(genres, pageable, 1)
+
+        when:
+        genreRepository.findByNameIgnoreCaseContaining("FICTION", pageable) >> genrePage
+        ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres("FICTION", pageable)
+
+        then:
+        response.statusCode == HttpStatus.OK
+        response.body.content.size() == 1
+        response.body.content[0].name == "Science Fiction"
+    }
+
+    def "should return all genres when name is null"() {
+        given:
+        Pageable pageable = PageRequest.of(0, 10)
+        List<Genre> genres = [createTestGenre(1L, "Genre 1")]
+        Page<Genre> genrePage = new PageImpl<>(genres, pageable, 1)
+
+        when:
+        genreRepository.findAll(pageable) >> genrePage
+        ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres(null, pageable)
+
+        then:
+        response.statusCode == HttpStatus.OK
+        response.body.content.size() == 1
+        response.body.content[0].name == "Genre 1"
+    }
+
+    def "should return all genres when name is empty"() {
+        given:
+        Pageable pageable = PageRequest.of(0, 10)
+        List<Genre> genres = [createTestGenre(1L, "Genre 1")]
+        Page<Genre> genrePage = new PageImpl<>(genres, pageable, 1)
+
+        when:
+        genreRepository.findAll(pageable) >> genrePage
+        ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres("", pageable)
+
+        then:
+        response.statusCode == HttpStatus.OK
+        response.body.content.size() == 1
+        response.body.content[0].name == "Genre 1"
+    }
+
+    def "should return all genres when name is whitespace"() {
+        given:
+        Pageable pageable = PageRequest.of(0, 10)
+        List<Genre> genres = [createTestGenre(1L, "Genre 1")]
+        Page<Genre> genrePage = new PageImpl<>(genres, pageable, 1)
+
+        when:
+        genreRepository.findAll(pageable) >> genrePage
+        ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres("   ", pageable)
+
+        then:
+        response.statusCode == HttpStatus.OK
+        response.body.content.size() == 1
+        response.body.content[0].name == "Genre 1"
     }
 
     // Helper methods

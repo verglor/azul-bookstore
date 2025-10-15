@@ -40,11 +40,16 @@ public class AuthorControllerDelegate implements AuthorsApiDelegate {
      * Uses Spring Boot's automatic Pageable parameter binding for seamless OpenAPI integration
      */
     @Override
-    public ResponseEntity<PagedResponse> getAllAuthors(Pageable pageable) {
+    public ResponseEntity<PagedResponse> getAllAuthors(String name, Pageable pageable) {
 
-        log.debug("Fetching authors - pageable: {}", pageable);
+        log.debug("Fetching authors - name: {}, pageable: {}", name, pageable);
 
-        Page<Author> authors = authorRepository.findAll(pageable);
+        Page<Author> authors;
+        if (name != null && !name.trim().isEmpty()) {
+            authors = authorRepository.findByNameIgnoreCaseContaining(name.trim(), pageable);
+        } else {
+            authors = authorRepository.findAll(pageable);
+        }
 
         PagedResponse response = convertToPagedResponse(authors);
 

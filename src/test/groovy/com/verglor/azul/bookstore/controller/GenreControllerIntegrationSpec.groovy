@@ -434,4 +434,136 @@ class GenreControllerIntegrationSpec extends BaseIntegrationSpec {
                 .statusCode(201)
                 .body("name", equalTo("文学 (Literature)"))
     }
+
+    def "should search genres by name containing"() {
+        given:
+        Genre genre1 = createTestGenre("Science Fiction")
+        Genre genre2 = createTestGenre("Fiction")
+        Genre genre3 = createTestGenre("Mystery")
+        genreRepository.saveAll([genre1, genre2, genre3])
+
+        when:
+        def response = getRequestSpecification()
+                .queryParam("name", "fiction")
+                .when()
+                .get("${getBaseUrl()}/genres")
+
+        then:
+        response.then()
+                .statusCode(200)
+                .body("content.size()", equalTo(2))
+                .body("content*.name", hasItems("Science Fiction", "Fiction"))
+                .body("content*.name", not(hasItem("Mystery")))
+                .body("page.totalElements", equalTo(2))
+    }
+
+    def "should search genres case insensitive"() {
+        given:
+        Genre genre1 = createTestGenre("Science Fiction")
+        Genre genre2 = createTestGenre("Mystery")
+        genreRepository.saveAll([genre1, genre2])
+
+        when:
+        def response = getRequestSpecification()
+                .queryParam("name", "FICTION")
+                .when()
+                .get("${getBaseUrl()}/genres")
+
+        then:
+        response.then()
+                .statusCode(200)
+                .body("content.size()", equalTo(1))
+                .body("content[0].name", equalTo("Science Fiction"))
+                .body("page.totalElements", equalTo(1))
+    }
+
+    def "should return all genres when name parameter is not provided"() {
+        given:
+        Genre genre1 = createTestGenre("Fiction")
+        Genre genre2 = createTestGenre("Mystery")
+        genreRepository.saveAll([genre1, genre2])
+
+        when:
+        def response = getRequestSpecification()
+                .when()
+                .get("${getBaseUrl()}/genres")
+
+        then:
+        response.then()
+                .statusCode(200)
+                .body("content.size()", equalTo(2))
+                .body("content*.name", hasItems("Fiction", "Mystery"))
+                .body("page.totalElements", equalTo(2))
+    }
+
+    def "should return empty result when no genres match search"() {
+        given:
+        Genre genre1 = createTestGenre("Science Fiction")
+        genreRepository.save(genre1)
+
+        when:
+        def response = getRequestSpecification()
+                .queryParam("name", "nonexistent")
+                .when()
+                .get("${getBaseUrl()}/genres")
+
+        then:
+        response.then()
+                .statusCode(200)
+                .body("content.size()", equalTo(0))
+                .body("page.totalElements", equalTo(0))
+    }
+
+    def "should search genres with pagination"() {
+        given:
+        // Create 5 genres
+        (1..5).each { i ->
+            genreRepository.saveAll([
+                    createTestGenre("Style $i"),
+                    createTestGenre("Genre $i"),
+            ])
+        }
+
+        when:
+        def response = getRequestSpecification()
+                .queryParam("name", "Genre")
+                .queryParam("page", 0)
+                .queryParam("size", 2)
+                .when()
+                .get("${getBaseUrl()}/genres")
+
+        then:
+        response.then()
+                .statusCode(200)
+                .body("content.size()", equalTo(2))
+                .body("content[0].name", equalTo("Genre 1"))
+                .body("content[1].name", equalTo("Genre 2"))
+                .body("page.size", equalTo(2))
+                .body("page.number", equalTo(0))
+                .body("page.totalElements", equalTo(5))
+                .body("page.totalPages", equalTo(3))
+    }
+
+    def "should search genres with sorting"() {
+        given:
+        genreRepository.saveAll([
+                createTestGenre("Z Genre"),
+                createTestGenre("B Style"),
+                createTestGenre("A Genre"),
+        ])
+
+        when:
+        def response = getRequestSpecification()
+                .queryParam("name", "Genre")
+                .queryParam("sort", "name,asc")
+                .when()
+                .get("${getBaseUrl()}/genres")
+
+        then:
+        response.then()
+                .statusCode(200)
+                .body("content.size()", equalTo(2))
+                .body("content[0].name", equalTo("A Genre"))
+                .body("content[1].name", equalTo("Z Genre"))
+    }
 }

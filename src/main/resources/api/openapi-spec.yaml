@@ -723,6 +723,15 @@ paths:
         - $ref: '#/components/parameters/pageParam'
         - $ref: '#/components/parameters/sizeParam'
         - $ref: '#/components/parameters/sortParam'
+        - name: name
+          in: query
+          description: Search authors by name (case-insensitive partial match)
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 50
+          example: "fitzgerald"
       x-spring-paginated: true
       responses:
         '200':
@@ -881,6 +890,15 @@ paths:
         - $ref: '#/components/parameters/pageParam'
         - $ref: '#/components/parameters/sizeParam'
         - $ref: '#/components/parameters/sortParam'
+        - name: name
+          in: query
+          description: Search genres by name (case-insensitive partial match)
+          required: false
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 50
+          example: "fiction"
       x-spring-paginated: true
       responses:
         '200':

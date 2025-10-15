@@ -39,11 +39,16 @@ public class GenreControllerDelegate implements GenresApiDelegate {
      * Uses Spring Boot's automatic Pageable parameter binding for seamless OpenAPI integration
      */
     @Override
-    public ResponseEntity<PagedResponse> getAllGenres(Pageable pageable) {
+    public ResponseEntity<PagedResponse> getAllGenres(String name, Pageable pageable) {
 
-        log.debug("Fetching genres - pageable: {}", pageable);
+        log.debug("Fetching genres - name: {}, pageable: {}", name, pageable);
 
-        Page<Genre> genres = genreRepository.findAll(pageable);
+        Page<Genre> genres;
+        if (name != null && !name.trim().isEmpty()) {
+            genres = genreRepository.findByNameIgnoreCaseContaining(name.trim(), pageable);
+        } else {
+            genres = genreRepository.findAll(pageable);
+        }
 
         PagedResponse response = convertToPagedResponse(genres);
 

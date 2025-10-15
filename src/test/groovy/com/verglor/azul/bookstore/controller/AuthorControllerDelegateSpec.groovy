@@ -36,7 +36,7 @@ class AuthorControllerDelegateSpec extends Specification {
 
         when:
         authorRepository.findAll(pageable) >> authorPage
-        ResponseEntity<PagedResponse> response = authorControllerDelegate.getAllAuthors(pageable)
+        ResponseEntity<PagedResponse> response = authorControllerDelegate.getAllAuthors(null, pageable)
 
         then:
         response.statusCode == HttpStatus.OK
@@ -228,7 +228,7 @@ class AuthorControllerDelegateSpec extends Specification {
 
         when:
         authorRepository.findAll(pageable) >> authorPage
-        ResponseEntity<PagedResponse> response = authorControllerDelegate.getAllAuthors(pageable)
+        ResponseEntity<PagedResponse> response = authorControllerDelegate.getAllAuthors(null, pageable)
 
         then:
         response.statusCode == HttpStatus.OK
@@ -245,7 +245,7 @@ class AuthorControllerDelegateSpec extends Specification {
 
         when:
         authorRepository.findAll(pageable) >> emptyPage
-        ResponseEntity<PagedResponse> response = authorControllerDelegate.getAllAuthors(pageable)
+        ResponseEntity<PagedResponse> response = authorControllerDelegate.getAllAuthors(null, pageable)
 
         then:
         response.statusCode == HttpStatus.OK
@@ -306,6 +306,91 @@ class AuthorControllerDelegateSpec extends Specification {
         then:
         response.statusCode == HttpStatus.OK
         response.body.name == "SAME NAME"
+    }
+
+    def "should search authors by name containing"() {
+        given:
+        Pageable pageable = PageRequest.of(0, 10)
+        List<Author> authors = [
+            createTestAuthor(1L, "Stephen King"),
+            createTestAuthor(2L, "King Arthur")
+        ]
+        Page<Author> authorPage = new PageImpl<>(authors, pageable, 2)
+
+        when:
+        authorRepository.findByNameIgnoreCaseContaining("king", pageable) >> authorPage
+        ResponseEntity<PagedResponse> response = authorControllerDelegate.getAllAuthors("king", pageable)
+
+        then:
+        response.statusCode == HttpStatus.OK
+        response.body.content.size() == 2
+        response.body.content[0].name == "Stephen King"
+        response.body.content[1].name == "King Arthur"
+        response.body.page.totalElements == 2
+    }
+
+    def "should search authors case insensitive"() {
+        given:
+        Pageable pageable = PageRequest.of(0, 10)
+        List<Author> authors = [createTestAuthor(1L, "Stephen King")]
+        Page<Author> authorPage = new PageImpl<>(authors, pageable, 1)
+
+        when:
+        authorRepository.findByNameIgnoreCaseContaining("KING", pageable) >> authorPage
+        ResponseEntity<PagedResponse> response = authorControllerDelegate.getAllAuthors("KING", pageable)
+
+        then:
+        response.statusCode == HttpStatus.OK
+        response.body.content.size() == 1
+        response.body.content[0].name == "Stephen King"
+    }
+
+    def "should return all authors when name is null"() {
+        given:
+        Pageable pageable = PageRequest.of(0, 10)
+        List<Author> authors = [createTestAuthor(1L, "Author 1")]
+        Page<Author> authorPage = new PageImpl<>(authors, pageable, 1)
+
+        when:
+        authorRepository.findAll(pageable) >> authorPage
+        ResponseEntity<PagedResponse> response = authorControllerDelegate.getAllAuthors(null, pageable)
+
+        then:
+        response.statusCode == HttpStatus.OK
+        response.body.content.size() == 1
+        response.body.content[0].name == "Author 1"
+    }
+
+    def "should return all authors when name is empty"() {
+        given:
+        Pageable pageable = PageRequest.of(0, 10)
+        List<Author> authors = [createTestAuthor(1L, "Author 1")]
+        Page<Author> authorPage = new PageImpl<>(authors, pageable, 1)
+
+        when:
+        authorRepository.findAll(pageable) >> authorPage
+        ResponseEntity<PagedResponse> response = authorControllerDelegate.getAllAuthors("", pageable)
+
+        then:
+        response.statusCode == HttpStatus.OK
+        response.body.content.size() == 1
+        response.body.content[0].name == "Author 1"
+    }
+
+    def "should return all authors when name is whitespace"() {
+        given:
+        Pageable pageable = PageRequest.of(0, 10)
+        List<Author> authors = [createTestAuthor(1L, "Author 1")]
+        Page<Author> authorPage = new PageImpl<>(authors, pageable, 1)
+
+        when:
+        authorRepository.findAll(pageable) >> authorPage
+        ResponseEntity<PagedResponse> response = authorControllerDelegate.getAllAuthors("   ", pageable)
+
+        then:
+        response.statusCode == HttpStatus.OK
+        response.body.content.size() == 1
+        response.body.content[0].name == "Author 1"
     }
 
     // Helper methods
