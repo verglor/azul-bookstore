@@ -54,8 +54,7 @@ dependencies {
 	testImplementation 'io.rest-assured:xml-path:5.5.6'
 
 	// TestContainers for integration tests
-	testImplementation 'org.testcontainers:junit-jupiter:1.21.3'
-	testImplementation 'org.testcontainers:spock:1.21.3'
+	testImplementation 'org.testcontainers:postgresql'
 
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 }
