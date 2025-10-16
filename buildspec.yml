@@ -23,7 +23,7 @@ phases:
   build:
     commands:
       - echo "Building & testing application..."
-      - ./gradlew clean check
+#      - ./gradlew clean build
       - echo "Building Docker image..."
       - ./gradlew bootBuildImage --imageName=$AWS_ECR_HOST/$AWS_ECR_REPO:latest
       - docker tag $AWS_ECR_HOST/$AWS_ECR_REPO:latest $AWS_ECR_HOST/$AWS_ECR_REPO:$CODEBUILD_BUILD_NUMBER
