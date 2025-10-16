@@ -135,6 +135,31 @@ class BookControllerIntegrationSpec extends BaseIntegrationSpec {
                 .body("validationErrors", notNullValue())
     }
 
+    def "should enforce maximum page size of 100"() {
+        given:
+        // Create more than 100 books to test pagination limits
+        (1..150).each { i ->
+            Book book = createTestBook("Book $i", 10.00 + i)
+            bookRepository.save(book)
+        }
+
+        when:
+        def response = getRequestSpecification()
+                .queryParam("page", 0)
+                .queryParam("size", 150) // Request more than the max of 100
+                .when()
+                .get("${getBaseUrl()}/books")
+
+        then:
+        response.then()
+                .statusCode(200)
+                .body("content.size()", equalTo(100)) // Should be capped at 100
+                .body("page.size", equalTo(100)) // Page size should be 100, not 150
+                .body("page.number", equalTo(0))
+                .body("page.totalElements", equalTo(150))
+                .body("page.totalPages", equalTo(2)) // Should have 2 pages (150/100)
+    }
+
     def "should return 400 when creating book with non-existent author"() {
         given:
         Map<String, Object> bookRequest = createBookRequest("Book with Invalid Author", 19.99, [999L])
