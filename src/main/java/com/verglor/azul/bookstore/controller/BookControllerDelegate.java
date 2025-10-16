@@ -3,14 +3,10 @@ package com.verglor.azul.bookstore.controller;
 import com.verglor.azul.bookstore.domain.Author;
 import com.verglor.azul.bookstore.domain.Book;
 import com.verglor.azul.bookstore.domain.Genre;
-import com.verglor.azul.bookstore.exception.BadRequestException;
-import com.verglor.azul.bookstore.exception.NotFoundException;
 import com.verglor.azul.bookstore.openapi.api.BooksApiDelegate;
 import com.verglor.azul.bookstore.openapi.model.*;
 import com.verglor.azul.bookstore.openapi.model.PageInfo;
-import com.verglor.azul.bookstore.repository.AuthorRepository;
-import com.verglor.azul.bookstore.repository.BookRepository;
-import com.verglor.azul.bookstore.repository.GenreRepository;
+import com.verglor.azul.bookstore.service.BookService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -33,9 +29,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class BookControllerDelegate implements BooksApiDelegate {
 
-    private final BookRepository bookRepository;
-    private final AuthorRepository authorRepository;
-    private final GenreRepository genreRepository;
+    private final BookService bookService;
 
     /**
      * Get all books with pagination, sorting, and search support
@@ -52,15 +46,7 @@ public class BookControllerDelegate implements BooksApiDelegate {
 
         log.debug("Fetching books - pageable: {}, title: {}, author: {}, genre: {}", pageable, title, author, genre);
 
-        Page<Book> books;
-
-        if (title == null & author == null & genre == null) {
-            log.debug("Fetching all books");
-            books = bookRepository.findAll(pageable);
-        } else  {
-            log.debug("Searching books by title, author, and genre");
-            books = bookRepository.findBooksWithFilters(title, author, genre, pageable);
-        }
+        Page<Book> books = bookService.getAllBooks(title, author, genre, pageable);
 
         PagedResponse response = convertToPagedResponse(books);
 
@@ -77,15 +63,9 @@ public class BookControllerDelegate implements BooksApiDelegate {
     public ResponseEntity<BookResponse> getBookById(Long bookId) {
         log.debug("Fetching book with ID: {}", bookId);
 
-        Optional<Book> bookOpt = bookRepository.findById(bookId);
-
-        if (bookOpt.isPresent()) {
-            BookResponse response = convertToResponse(bookOpt.get());
-            log.info("Successfully retrieved book: {}", bookOpt.get().getTitle());
-            return ResponseEntity.ok(response);
-        } else {
-            throw new NotFoundException("Book not found with ID: " + bookId);
-        }
+        Book book = bookService.getBookById(bookId);
+        BookResponse response = convertToResponse(book);
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -96,41 +76,8 @@ public class BookControllerDelegate implements BooksApiDelegate {
     public ResponseEntity<BookResponse> createBook(BookRequest bookRequest) {
         log.debug("Creating new book: {}", bookRequest.getTitle());
 
-        // Validate that at least one author is provided
-        if (bookRequest.getAuthorIds() == null || bookRequest.getAuthorIds().isEmpty()) {
-            throw new BadRequestException("Cannot create book without authors");
-        }
-
-        // Validate authors exist
-        List<Author> authors = new ArrayList<>();
-        for (Long authorId : bookRequest.getAuthorIds()) {
-            Optional<Author> authorOpt = authorRepository.findById(authorId);
-            if (authorOpt.isEmpty()) {
-                throw new BadRequestException("Author not found with ID: " + authorId);
-            }
-            authors.add(authorOpt.get());
-        }
-
-        // Validate genres exist if provided
-        List<Genre> genres = new ArrayList<>();
-        if (bookRequest.getGenreIds() != null) {
-            for (Long genreId : bookRequest.getGenreIds()) {
-                Optional<Genre> genreOpt = genreRepository.findById(genreId);
-                if (genreOpt.isEmpty()) {
-                    throw new BadRequestException("Genre not found with ID: " + genreId);
-                }
-                genres.add(genreOpt.get());
-            }
-        }
-
-        Book book = Book.builder()
-                .title(bookRequest.getTitle())
-                .price(bookRequest.getPrice())
-                .authors(authors)
-                .genres(genres)
-                .build();
-
-        Book savedBook = bookRepository.save(book);
+        Book savedBook = bookService.createBook(bookRequest.getTitle(), bookRequest.getPrice(),
+                bookRequest.getAuthorIds(), bookRequest.getGenreIds());
         BookResponse response = convertToResponse(savedBook);
 
         log.info("Successfully created book: {} with ID: {}", savedBook.getTitle(), savedBook.getId());
@@ -146,52 +93,12 @@ public class BookControllerDelegate implements BooksApiDelegate {
 
         log.debug("Updating book with ID: {} - new title: {}", bookId, bookRequest.getTitle());
 
-        Optional<Book> bookOpt = bookRepository.findById(bookId);
+        Book updatedBook = bookService.updateBook(bookId, bookRequest.getTitle(), bookRequest.getPrice(),
+                bookRequest.getAuthorIds(), bookRequest.getGenreIds());
+        BookResponse response = convertToResponse(updatedBook);
 
-        if (bookOpt.isPresent()) {
-            Book book = bookOpt.get();
-
-            // Validate that at least one author is provided
-            if (bookRequest.getAuthorIds() == null || bookRequest.getAuthorIds().isEmpty()) {
-                throw new BadRequestException("Cannot update book without authors");
-            }
-
-            // Validate authors exist
-            List<Author> authors = new ArrayList<>();
-            for (Long authorId : bookRequest.getAuthorIds()) {
-                Optional<Author> authorOpt = authorRepository.findById(authorId);
-                if (authorOpt.isEmpty()) {
-                    throw new BadRequestException("Author not found with ID: " + authorId);
-                }
-                authors.add(authorOpt.get());
-            }
-
-            // Validate genres exist if provided
-            List<Genre> genres = new ArrayList<>();
-            if (bookRequest.getGenreIds() != null) {
-                for (Long genreId : bookRequest.getGenreIds()) {
-                    Optional<Genre> genreOpt = genreRepository.findById(genreId);
-                    if (genreOpt.isEmpty()) {
-                        throw new BadRequestException("Genre not found with ID: " + genreId);
-                    }
-                    genres.add(genreOpt.get());
-                }
-            }
-
-            book.setTitle(bookRequest.getTitle());
-            book.setPrice(bookRequest.getPrice());
-            book.setAuthors(authors);
-            book.setGenres(genres);
-
-            Book updatedBook = bookRepository.save(book);
-            BookResponse response = convertToResponse(updatedBook);
-
-            log.info("Successfully updated book: {} with ID: {}", updatedBook.getTitle(), updatedBook.getId());
-            return ResponseEntity.ok(response);
-
-        } else {
-            throw new NotFoundException("Book not found with ID: " + bookId);
-        }
+        log.info("Successfully updated book: {} with ID: {}", updatedBook.getTitle(), updatedBook.getId());
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -202,16 +109,8 @@ public class BookControllerDelegate implements BooksApiDelegate {
     public ResponseEntity<Void> deleteBook(Long bookId) {
         log.debug("Deleting book with ID: {}", bookId);
 
-        Optional<Book> bookOpt = bookRepository.findById(bookId);
-
-        if (bookOpt.isPresent()) {
-            bookRepository.deleteById(bookId);
-            log.info("Successfully deleted book with ID: {}", bookId);
-            return ResponseEntity.noContent().build();
-
-        } else {
-            throw new NotFoundException("Book not found with ID: " + bookId);
-        }
+        bookService.deleteBook(bookId);
+        return ResponseEntity.noContent().build();
     }
 
 

@@ -45,8 +45,9 @@ Even if project is planned as eshop with orders which will require strong consis
 ## Implementation details
 
 ### Layers of abstraction
-Since the simple CRUD character of the app there is no actual business logic yet, hence controllers communicate directly with repositories.
-Once it becomes more complex, service layer can be easily introduced.
+Since the simple CRUD character of the app there is not much business logic yet.
+Despite that I implemented service layer separating controllers from repositories
+and handling transactions and validations.
 
 ### API first vs code first
 Since the API will be consumed by a third party I prefer API-first approach so that it is more stable and development of

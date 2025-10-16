@@ -1,15 +1,13 @@
 package com.verglor.azul.bookstore.controller;
 
 import com.verglor.azul.bookstore.domain.Author;
-import com.verglor.azul.bookstore.exception.ConflictException;
-import com.verglor.azul.bookstore.exception.NotFoundException;
 import com.verglor.azul.bookstore.openapi.api.AuthorsApiDelegate;
 import com.verglor.azul.bookstore.openapi.model.AuthorRequest;
 import com.verglor.azul.bookstore.openapi.model.AuthorResponse;
 import com.verglor.azul.bookstore.openapi.model.PagedResponse;
 import com.verglor.azul.bookstore.openapi.model.PagedResponseContentInner;
 import com.verglor.azul.bookstore.openapi.model.PageInfo;
-import com.verglor.azul.bookstore.repository.AuthorRepository;
+import com.verglor.azul.bookstore.service.AuthorService;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -20,7 +18,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Optional;
 
 /**
  * Service for Author entity operations
@@ -32,7 +29,7 @@ import java.util.Optional;
 @Slf4j
 public class AuthorControllerDelegate implements AuthorsApiDelegate {
 
-    private final AuthorRepository authorRepository;
+    private final AuthorService authorService;
 
     /**
      * Get all authors with pagination and sorting support
@@ -44,12 +41,7 @@ public class AuthorControllerDelegate implements AuthorsApiDelegate {
 
         log.debug("Fetching authors - name: {}, pageable: {}", name, pageable);
 
-        Page<Author> authors;
-        if (name != null && !name.trim().isEmpty()) {
-            authors = authorRepository.findByNameIgnoreCaseContaining(name.trim(), pageable);
-        } else {
-            authors = authorRepository.findAll(pageable);
-        }
+        Page<Author> authors = authorService.getAllAuthors(name, pageable);
 
         PagedResponse response = convertToPagedResponse(authors);
 
@@ -66,15 +58,9 @@ public class AuthorControllerDelegate implements AuthorsApiDelegate {
     public ResponseEntity<AuthorResponse> getAuthorById(Long authorId) {
         log.debug("Fetching author with ID: {}", authorId);
 
-        Optional<Author> authorOpt = authorRepository.findById(authorId);
-
-        if (authorOpt.isPresent()) {
-            AuthorResponse response = convertToResponse(authorOpt.get());
-            log.info("Successfully retrieved author: {}", authorOpt.get().getName());
-            return ResponseEntity.ok(response);
-        } else {
-            throw new NotFoundException("Author not found with ID: " + authorId);
-        }
+        Author author = authorService.getAuthorById(authorId);
+        AuthorResponse response = convertToResponse(author);
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -85,16 +71,7 @@ public class AuthorControllerDelegate implements AuthorsApiDelegate {
     public ResponseEntity<AuthorResponse> createAuthor(AuthorRequest authorRequest) {
         log.debug("Creating new author: {}", authorRequest.getName());
 
-        // Check if author with same name already exists
-        if (authorRepository.existsByNameIgnoreCase(authorRequest.getName())) {
-            throw new ConflictException("Author already exists with name: " + authorRequest.getName());
-        }
-
-        Author author = Author.builder()
-                .name(authorRequest.getName())
-                .build();
-
-        Author savedAuthor = authorRepository.save(author);
+        Author savedAuthor = authorService.createAuthor(authorRequest.getName());
         AuthorResponse response = convertToResponse(savedAuthor);
 
         log.info("Successfully created author: {} with ID: {}", savedAuthor.getName(), savedAuthor.getId());
@@ -110,27 +87,11 @@ public class AuthorControllerDelegate implements AuthorsApiDelegate {
 
         log.debug("Updating author with ID: {} - new name: {}", authorId, authorRequest.getName());
 
-        Optional<Author> authorOpt = authorRepository.findById(authorId);
+        Author updatedAuthor = authorService.updateAuthor(authorId, authorRequest.getName());
+        AuthorResponse response = convertToResponse(updatedAuthor);
 
-        if (authorOpt.isPresent()) {
-            Author author = authorOpt.get();
-
-            // Check if another author with same name exists
-            Optional<Author> existingAuthor = authorRepository.findByNameIgnoreCase(authorRequest.getName());
-            if (existingAuthor.isPresent() && !existingAuthor.get().getId().equals(authorId)) {
-                throw new ConflictException("Author already exists with name: " + authorRequest.getName());
-            }
-
-            author.setName(authorRequest.getName());
-            Author updatedAuthor = authorRepository.save(author);
-            AuthorResponse response = convertToResponse(updatedAuthor);
-
-            log.info("Successfully updated author: {} with ID: {}", updatedAuthor.getName(), updatedAuthor.getId());
-            return ResponseEntity.ok(response);
-
-        } else {
-            throw new NotFoundException("Author not found with ID: " + authorId);
-        }
+        log.info("Successfully updated author: {} with ID: {}", updatedAuthor.getName(), updatedAuthor.getId());
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -141,23 +102,8 @@ public class AuthorControllerDelegate implements AuthorsApiDelegate {
     public ResponseEntity<Void> deleteAuthor(Long authorId) {
         log.debug("Deleting author with ID: {}", authorId);
 
-        Optional<Author> authorOpt = authorRepository.findById(authorId);
-
-        if (authorOpt.isPresent()) {
-            Author author = authorOpt.get();
-
-            // Check if author has associated books
-            if (!author.getBooks().isEmpty()) {
-                throw new ConflictException("Cannot delete author " + author.getName() + " - has associated books");
-            }
-
-            authorRepository.deleteById(authorId);
-            log.info("Successfully deleted author: {} with ID: {}", author.getName(), authorId);
-            return ResponseEntity.noContent().build();
-
-        } else {
-            throw new NotFoundException("Author not found with ID: " + authorId);
-        }
+        authorService.deleteAuthor(authorId);
+        return ResponseEntity.noContent().build();
     }
 
 

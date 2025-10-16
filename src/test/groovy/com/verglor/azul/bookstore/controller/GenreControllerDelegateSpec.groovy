@@ -7,7 +7,7 @@ import com.verglor.azul.bookstore.exception.NotFoundException
 import com.verglor.azul.bookstore.openapi.model.GenreRequest
 import com.verglor.azul.bookstore.openapi.model.GenreResponse
 import com.verglor.azul.bookstore.openapi.model.PagedResponse
-import com.verglor.azul.bookstore.repository.GenreRepository
+import com.verglor.azul.bookstore.service.GenreService
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.PageRequest
@@ -21,10 +21,10 @@ import static org.hamcrest.Matchers.*
 
 class GenreControllerDelegateSpec extends Specification {
 
-    GenreRepository genreRepository = Mock()
+    GenreService genreService = Mock()
 
     @Subject
-    GenreControllerDelegate genreControllerDelegate = new GenreControllerDelegate(genreRepository)
+    GenreControllerDelegate genreControllerDelegate = new GenreControllerDelegate(genreService)
 
     def "should get all genres with pagination"() {
         given:
@@ -37,7 +37,7 @@ class GenreControllerDelegateSpec extends Specification {
         Page<Genre> genrePage = new PageImpl<>(genres, pageable, 3)
 
         when:
-        genreRepository.findAll(pageable) >> genrePage
+        genreService.getAllGenres(null, pageable) >> genrePage
         ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres(null, pageable)
 
         then:
@@ -57,7 +57,7 @@ class GenreControllerDelegateSpec extends Specification {
         Genre genre = createTestGenre(genreId, "Test Genre")
 
         when:
-        genreRepository.findById(genreId) >> Optional.of(genre)
+        genreService.getGenreById(genreId) >> genre
         ResponseEntity<GenreResponse> response = genreControllerDelegate.getGenreById(genreId)
 
         then:
@@ -71,7 +71,7 @@ class GenreControllerDelegateSpec extends Specification {
         Long genreId = 999L
 
         when:
-        genreRepository.findById(genreId) >> Optional.empty()
+        genreService.getGenreById(genreId) >> { throw new NotFoundException("Genre not found") }
         genreControllerDelegate.getGenreById(genreId)
 
         then:
@@ -87,18 +87,13 @@ class GenreControllerDelegateSpec extends Specification {
         Genre savedGenre = createTestGenre(1L, "New Genre")
 
         when:
-        genreRepository.existsByNameIgnoreCase("New Genre") >> false
-        genreRepository.save(_) >> savedGenre
+        genreService.createGenre("New Genre") >> savedGenre
         ResponseEntity<GenreResponse> response = genreControllerDelegate.createGenre(genreRequest)
 
         then:
         response.statusCode == HttpStatus.CREATED
         response.body.id == 1L
         response.body.name == "New Genre"
-        1 * genreRepository.save(_) >> { Genre genre ->
-            assert genre.name == "New Genre"
-            return savedGenre
-        }
     }
 
     def "should return conflict when creating genre with existing name"() {
@@ -108,12 +103,11 @@ class GenreControllerDelegateSpec extends Specification {
                 .build()
 
         when:
-        genreRepository.existsByNameIgnoreCase("Existing Genre") >> true
+        genreService.createGenre("Existing Genre") >> { throw new ConflictException("Genre already exists") }
         genreControllerDelegate.createGenre(genreRequest)
 
         then:
         thrown(ConflictException)
-        0 * genreRepository.save(_)
     }
 
     def "should update genre successfully"() {
@@ -123,23 +117,16 @@ class GenreControllerDelegateSpec extends Specification {
                 .name("Updated Genre Name")
                 .build()
 
-        Genre existingGenre = createTestGenre(genreId, "Original Name")
         Genre updatedGenre = createTestGenre(genreId, "Updated Genre Name")
 
         when:
-        genreRepository.findById(genreId) >> Optional.of(existingGenre)
-        genreRepository.findByNameIgnoreCase("Updated Genre Name") >> Optional.empty()
-        genreRepository.save(_) >> updatedGenre
+        genreService.updateGenre(genreId, "Updated Genre Name") >> updatedGenre
         ResponseEntity<GenreResponse> response = genreControllerDelegate.updateGenre(genreId, genreRequest)
 
         then:
         response.statusCode == HttpStatus.OK
         response.body.id == genreId
         response.body.name == "Updated Genre Name"
-        1 * genreRepository.save(_) >> { Genre genre ->
-            assert genre.name == "Updated Genre Name"
-            return updatedGenre
-        }
     }
 
     def "should return conflict when updating genre with existing name"() {
@@ -149,17 +136,12 @@ class GenreControllerDelegateSpec extends Specification {
                 .name("Conflicting Name")
                 .build()
 
-        Genre existingGenre = createTestGenre(genreId, "Original Name")
-        Genre conflictingGenre = createTestGenre(2L, "Conflicting Name")
-
         when:
-        genreRepository.findById(genreId) >> Optional.of(existingGenre)
-        genreRepository.findByNameIgnoreCase("Conflicting Name") >> Optional.of(conflictingGenre)
+        genreService.updateGenre(genreId, "Conflicting Name") >> { throw new ConflictException("Genre name already exists") }
         genreControllerDelegate.updateGenre(genreId, genreRequest)
 
         then:
         thrown(ConflictException)
-        0 * genreRepository.save(_)
     }
 
     def "should return not found when updating non-existent genre"() {
@@ -170,43 +152,36 @@ class GenreControllerDelegateSpec extends Specification {
                 .build()
 
         when:
-        genreRepository.findById(genreId) >> Optional.empty()
+        genreService.updateGenre(genreId, "Updated Name") >> { throw new NotFoundException("Genre not found") }
         genreControllerDelegate.updateGenre(genreId, genreRequest)
 
         then:
         thrown(NotFoundException)
-        0 * genreRepository.save(_)
     }
 
     def "should delete genre successfully"() {
         given:
         Long genreId = 1L
-        Genre existingGenre = createTestGenre(genreId, "Genre to Delete")
-        existingGenre.books = [] // No associated books
 
         when:
-        genreRepository.findById(genreId) >> Optional.of(existingGenre)
+        genreService.deleteGenre(genreId) >> {}
         ResponseEntity<Void> response = genreControllerDelegate.deleteGenre(genreId)
 
         then:
         response.statusCode == HttpStatus.NO_CONTENT
         response.body == null
-        1 * genreRepository.deleteById(genreId)
     }
 
     def "should return conflict when deleting genre with associated books"() {
         given:
         Long genreId = 1L
-        Genre existingGenre = createTestGenre(genreId, "Genre with Books")
-        existingGenre.books = [createTestBook(1L, "Book 1"), createTestBook(2L, "Book 2")] // Has associated books
 
         when:
-        genreRepository.findById(genreId) >> Optional.of(existingGenre)
+        genreService.deleteGenre(genreId) >> { throw new ConflictException("Cannot delete genre with associated books") }
         genreControllerDelegate.deleteGenre(genreId)
 
         then:
         thrown(ConflictException)
-        0 * genreRepository.deleteById(_)
     }
 
     def "should return not found when deleting non-existent genre"() {
@@ -214,12 +189,11 @@ class GenreControllerDelegateSpec extends Specification {
         Long genreId = 999L
 
         when:
-        genreRepository.findById(genreId) >> Optional.empty()
+        genreService.deleteGenre(genreId) >> { throw new NotFoundException("Genre not found") }
         genreControllerDelegate.deleteGenre(genreId)
 
         then:
         thrown(NotFoundException)
-        0 * genreRepository.deleteById(_)
     }
 
     def "should handle pagination metadata correctly"() {
@@ -229,7 +203,7 @@ class GenreControllerDelegateSpec extends Specification {
         Page<Genre> genrePage = new PageImpl<>(genres, pageable, 12) // Total 12 genres
 
         when:
-        genreRepository.findAll(pageable) >> genrePage
+        genreService.getAllGenres(null, pageable) >> genrePage
         ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres(null, pageable)
 
         then:
@@ -246,7 +220,7 @@ class GenreControllerDelegateSpec extends Specification {
         Page<Genre> emptyPage = new PageImpl<>([], pageable, 0)
 
         when:
-        genreRepository.findAll(pageable) >> emptyPage
+        genreService.getAllGenres(null, pageable) >> emptyPage
         ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres(null, pageable)
 
         then:
@@ -256,199 +230,6 @@ class GenreControllerDelegateSpec extends Specification {
         response.body.page.totalPages == 0
     }
 
-    def "should handle case insensitive name conflict on create"() {
-        given:
-        GenreRequest genreRequest = GenreRequest.builder()
-                .name("test genre")
-                .build()
-
-        when:
-        genreRepository.existsByNameIgnoreCase("test genre") >> true
-        genreControllerDelegate.createGenre(genreRequest)
-
-        then:
-        thrown(ConflictException)
-    }
-
-    def "should handle case insensitive name conflict on update"() {
-        given:
-        Long genreId = 1L
-        GenreRequest genreRequest = GenreRequest.builder()
-                .name("TEST NAME")
-                .build()
-
-        Genre existingGenre = createTestGenre(genreId, "Original Name")
-        Genre conflictingGenre = createTestGenre(2L, "test name")
-
-        when:
-        genreRepository.findById(genreId) >> Optional.of(existingGenre)
-        genreRepository.findByNameIgnoreCase("TEST NAME") >> Optional.of(conflictingGenre)
-        genreControllerDelegate.updateGenre(genreId, genreRequest)
-
-        then:
-        thrown(ConflictException)
-    }
-
-    def "should allow updating genre to same name (case insensitive)"() {
-        given:
-        Long genreId = 1L
-        GenreRequest genreRequest = GenreRequest.builder()
-                .name("SAME NAME")
-                .build()
-
-        Genre existingGenre = createTestGenre(genreId, "same name")
-        Genre updatedGenre = createTestGenre(genreId, "SAME NAME")
-
-        when:
-        genreRepository.findById(genreId) >> Optional.of(existingGenre)
-        genreRepository.findByNameIgnoreCase("SAME NAME") >> Optional.of(existingGenre) // Same genre
-        genreRepository.save(_) >> updatedGenre
-        ResponseEntity<GenreResponse> response = genreControllerDelegate.updateGenre(genreId, genreRequest)
-
-        then:
-        response.statusCode == HttpStatus.OK
-        response.body.name == "SAME NAME"
-    }
-
-    def "should handle large page numbers correctly"() {
-        given:
-        Pageable pageable = PageRequest.of(10, 10) // Page 10, 10 items per page
-        List<Genre> genres = []
-        Page<Genre> genrePage = new PageImpl<>(genres, pageable, 105) // Total 105 genres
-
-        when:
-        genreRepository.findAll(pageable) >> genrePage
-        ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres(null, pageable)
-
-        then:
-        response.statusCode == HttpStatus.OK
-        response.body.content.size() == 0 // Empty because we're on page 10 of 10 total pages (105/10 = 10.5, so 11 pages)
-        response.body.page.totalElements == 105
-        response.body.page.totalPages == 11
-        response.body.page.number == 10
-    }
-
-    def "should handle single item result set"() {
-        given:
-        Pageable pageable = PageRequest.of(0, 10)
-        List<Genre> genres = [createTestGenre(1L, "Only Genre")]
-        Page<Genre> genrePage = new PageImpl<>(genres, pageable, 1)
-
-        when:
-        genreRepository.findAll(pageable) >> genrePage
-        ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres(null, pageable)
-
-        then:
-        response.statusCode == HttpStatus.OK
-        response.body.content.size() == 1
-        response.body.content[0].name == "Only Genre"
-        response.body.page.totalElements == 1
-        response.body.page.totalPages == 1
-    }
-
-    def "should handle genre name with unicode characters"() {
-        given:
-        GenreRequest genreRequest = GenreRequest.builder()
-                .name("文学 (Literature)")
-                .build()
-
-        Genre savedGenre = createTestGenre(1L, "文学 (Literature)")
-
-        when:
-        genreRepository.existsByNameIgnoreCase("文学 (Literature)") >> false
-        genreRepository.save(_) >> savedGenre
-        ResponseEntity<GenreResponse> response = genreControllerDelegate.createGenre(genreRequest)
-
-        then:
-        response.statusCode == HttpStatus.CREATED
-        response.body.id == 1L
-        response.body.name == "文学 (Literature)"
-    }
-
-    def "should search genres by name containing"() {
-        given:
-        Pageable pageable = PageRequest.of(0, 10)
-        List<Genre> genres = [
-            createTestGenre(1L, "Science Fiction"),
-            createTestGenre(2L, "Fiction")
-        ]
-        Page<Genre> genrePage = new PageImpl<>(genres, pageable, 2)
-
-        when:
-        genreRepository.findByNameIgnoreCaseContaining("fiction", pageable) >> genrePage
-        ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres("fiction", pageable)
-
-        then:
-        response.statusCode == HttpStatus.OK
-        response.body.content.size() == 2
-        response.body.content[0].name == "Science Fiction"
-        response.body.content[1].name == "Fiction"
-        response.body.page.totalElements == 2
-    }
-
-    def "should search genres case insensitive"() {
-        given:
-        Pageable pageable = PageRequest.of(0, 10)
-        List<Genre> genres = [createTestGenre(1L, "Science Fiction")]
-        Page<Genre> genrePage = new PageImpl<>(genres, pageable, 1)
-
-        when:
-        genreRepository.findByNameIgnoreCaseContaining("FICTION", pageable) >> genrePage
-        ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres("FICTION", pageable)
-
-        then:
-        response.statusCode == HttpStatus.OK
-        response.body.content.size() == 1
-        response.body.content[0].name == "Science Fiction"
-    }
-
-    def "should return all genres when name is null"() {
-        given:
-        Pageable pageable = PageRequest.of(0, 10)
-        List<Genre> genres = [createTestGenre(1L, "Genre 1")]
-        Page<Genre> genrePage = new PageImpl<>(genres, pageable, 1)
-
-        when:
-        genreRepository.findAll(pageable) >> genrePage
-        ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres(null, pageable)
-
-        then:
-        response.statusCode == HttpStatus.OK
-        response.body.content.size() == 1
-        response.body.content[0].name == "Genre 1"
-    }
-
-    def "should return all genres when name is empty"() {
-        given:
-        Pageable pageable = PageRequest.of(0, 10)
-        List<Genre> genres = [createTestGenre(1L, "Genre 1")]
-        Page<Genre> genrePage = new PageImpl<>(genres, pageable, 1)
-
-        when:
-        genreRepository.findAll(pageable) >> genrePage
-        ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres("", pageable)
-
-        then:
-        response.statusCode == HttpStatus.OK
-        response.body.content.size() == 1
-        response.body.content[0].name == "Genre 1"
-    }
-
-    def "should return all genres when name is whitespace"() {
-        given:
-        Pageable pageable = PageRequest.of(0, 10)
-        List<Genre> genres = [createTestGenre(1L, "Genre 1")]
-        Page<Genre> genrePage = new PageImpl<>(genres, pageable, 1)
-
-        when:
-        genreRepository.findAll(pageable) >> genrePage
-        ResponseEntity<PagedResponse> response = genreControllerDelegate.getAllGenres("   ", pageable)
-
-        then:
-        response.statusCode == HttpStatus.OK
-        response.body.content.size() == 1
-        response.body.content[0].name == "Genre 1"
-    }
 
     // Helper methods
     private Genre createTestGenre(Long id, String name) {

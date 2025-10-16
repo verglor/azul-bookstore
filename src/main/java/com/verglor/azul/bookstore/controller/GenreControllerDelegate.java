@@ -1,15 +1,13 @@
 package com.verglor.azul.bookstore.controller;
 
 import com.verglor.azul.bookstore.domain.Genre;
-import com.verglor.azul.bookstore.exception.ConflictException;
-import com.verglor.azul.bookstore.exception.NotFoundException;
 import com.verglor.azul.bookstore.openapi.api.GenresApiDelegate;
 import com.verglor.azul.bookstore.openapi.model.GenreRequest;
 import com.verglor.azul.bookstore.openapi.model.GenreResponse;
 import com.verglor.azul.bookstore.openapi.model.PagedResponse;
 import com.verglor.azul.bookstore.openapi.model.PagedResponseContentInner;
 import com.verglor.azul.bookstore.openapi.model.PageInfo;
-import com.verglor.azul.bookstore.repository.GenreRepository;
+import com.verglor.azul.bookstore.service.GenreService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -31,7 +29,7 @@ import java.util.Optional;
 @Slf4j
 public class GenreControllerDelegate implements GenresApiDelegate {
 
-    private final GenreRepository genreRepository;
+    private final GenreService genreService;
 
     /**
      * Get all genres with pagination and sorting support
@@ -43,12 +41,7 @@ public class GenreControllerDelegate implements GenresApiDelegate {
 
         log.debug("Fetching genres - name: {}, pageable: {}", name, pageable);
 
-        Page<Genre> genres;
-        if (name != null && !name.trim().isEmpty()) {
-            genres = genreRepository.findByNameIgnoreCaseContaining(name.trim(), pageable);
-        } else {
-            genres = genreRepository.findAll(pageable);
-        }
+        Page<Genre> genres = genreService.getAllGenres(name, pageable);
 
         PagedResponse response = convertToPagedResponse(genres);
 
@@ -65,15 +58,9 @@ public class GenreControllerDelegate implements GenresApiDelegate {
     public ResponseEntity<GenreResponse> getGenreById(Long genreId) {
         log.debug("Fetching genre with ID: {}", genreId);
 
-        Optional<Genre> genreOpt = genreRepository.findById(genreId);
-
-        if (genreOpt.isPresent()) {
-            GenreResponse response = convertToResponse(genreOpt.get());
-            log.info("Successfully retrieved genre: {}", genreOpt.get().getName());
-            return ResponseEntity.ok(response);
-        } else {
-            throw new NotFoundException("Genre not found with ID: " + genreId);
-        }
+        Genre genre = genreService.getGenreById(genreId);
+        GenreResponse response = convertToResponse(genre);
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -84,16 +71,7 @@ public class GenreControllerDelegate implements GenresApiDelegate {
     public ResponseEntity<GenreResponse> createGenre(GenreRequest genreRequest) {
         log.debug("Creating new genre: {}", genreRequest.getName());
 
-        // Check if genre with same name already exists
-        if (genreRepository.existsByNameIgnoreCase(genreRequest.getName())) {
-            throw new ConflictException("Genre already exists with name: " + genreRequest.getName());
-        }
-
-        Genre genre = Genre.builder()
-                .name(genreRequest.getName())
-                .build();
-
-        Genre savedGenre = genreRepository.save(genre);
+        Genre savedGenre = genreService.createGenre(genreRequest.getName());
         GenreResponse response = convertToResponse(savedGenre);
 
         log.info("Successfully created genre: {} with ID: {}", savedGenre.getName(), savedGenre.getId());
@@ -109,27 +87,11 @@ public class GenreControllerDelegate implements GenresApiDelegate {
 
         log.debug("Updating genre with ID: {} - new name: {}", genreId, genreRequest.getName());
 
-        Optional<Genre> genreOpt = genreRepository.findById(genreId);
+        Genre updatedGenre = genreService.updateGenre(genreId, genreRequest.getName());
+        GenreResponse response = convertToResponse(updatedGenre);
 
-        if (genreOpt.isPresent()) {
-            Genre genre = genreOpt.get();
-
-            // Check if another genre with same name exists
-            Optional<Genre> existingGenre = genreRepository.findByNameIgnoreCase(genreRequest.getName());
-            if (existingGenre.isPresent() && !existingGenre.get().getId().equals(genreId)) {
-                throw new ConflictException("Another genre already exists with name: " + genreRequest.getName());
-            }
-
-            genre.setName(genreRequest.getName());
-            Genre updatedGenre = genreRepository.save(genre);
-            GenreResponse response = convertToResponse(updatedGenre);
-
-            log.info("Successfully updated genre: {} with ID: {}", updatedGenre.getName(), updatedGenre.getId());
-            return ResponseEntity.ok(response);
-
-        } else {
-            throw new NotFoundException("Genre not found with ID: " + genreId);
-        }
+        log.info("Successfully updated genre: {} with ID: {}", updatedGenre.getName(), updatedGenre.getId());
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -140,23 +102,8 @@ public class GenreControllerDelegate implements GenresApiDelegate {
     public ResponseEntity<Void> deleteGenre(Long genreId) {
         log.debug("Deleting genre with ID: {}", genreId);
 
-        Optional<Genre> genreOpt = genreRepository.findById(genreId);
-
-        if (genreOpt.isPresent()) {
-            Genre genre = genreOpt.get();
-
-            // Check if genre has associated books
-            if (!genre.getBooks().isEmpty()) {
-                throw new ConflictException("Cannot delete genre " + genre.getName() + " - has associated books");
-            }
-
-            genreRepository.deleteById(genreId);
-            log.info("Successfully deleted genre: {} with ID: {}", genre.getName(), genreId);
-            return ResponseEntity.noContent().build();
-
-        } else {
-            throw new NotFoundException("Genre not found with ID: " + genreId);
-        }
+        genreService.deleteGenre(genreId);
+        return ResponseEntity.noContent().build();
     }
 
     /**
