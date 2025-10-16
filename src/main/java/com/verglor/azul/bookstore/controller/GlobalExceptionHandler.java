@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -156,6 +157,18 @@ public class GlobalExceptionHandler {
         log.warn("Malformed JSON request to {}: {}", request.getRequestURI(), ex.getMessage());
 
         return renderError(HttpStatus.BAD_REQUEST, "Malformed JSON in request body: " + ex.getMessage());
+    }
+
+    /**
+     * Handle invalid property references
+     */
+    @ExceptionHandler(PropertyReferenceException.class)
+    public ResponseEntity<ErrorResponse> handlePropertyReferenceException(
+            PropertyReferenceException ex, HttpServletRequest request) {
+
+        log.error("Property reference exception on request to {}: {}", request.getRequestURI(), ex.getMessage(), ex);
+
+        return renderError(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
     /**

@@ -483,4 +483,18 @@ class BookControllerIntegrationSpec extends BaseIntegrationSpec {
                 .body("content[1].price", equalTo(20.00f))
                 .body("content[2].title", equalTo("Book B"))
     }
+
+    def "should return 400 when sorting by non-existing column"() {
+        when:
+        def response = getRequestSpecification()
+                .queryParam("sort", "nonexistent,asc")
+                .when()
+                .get("${getBaseUrl()}/books")
+
+        then:
+        response.then()
+                .statusCode(400)
+                .body("error", equalTo("Bad Request"))
+                .body("message", equalTo("No property 'nonexistent' found for type 'Book'"))
+    }
 }
